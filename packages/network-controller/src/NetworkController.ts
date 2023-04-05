@@ -269,7 +269,10 @@ export class NetworkController extends BaseControllerV2<
         this.setupInfuraProvider(type);
         break;
       case NetworkType.localhost:
-        this.setupStandardProvider(LOCALHOST_RPC_URL);
+        if (chainId === undefined) {
+          throw new Error('chainId must be passed in for custom rpcs');
+        }
+        this.setupStandardProvider(LOCALHOST_RPC_URL, toHex(chainId));
         break;
       case NetworkType.rpc:
         if (chainId === undefined) {
@@ -334,7 +337,7 @@ export class NetworkController extends BaseControllerV2<
     );
   }
 
-  private setupStandardProvider(rpcTarget: string, chainId?: Hex) {
+  private setupStandardProvider(rpcTarget: string, chainId: Hex) {
     const { provider, blockTracker } = createNetworkClient({
       rpcUrl: rpcTarget,
       chainId,
@@ -448,11 +451,6 @@ export class NetworkController extends BaseControllerV2<
    * @param type - Human readable network name.
    */
   async setProviderType(type: NetworkType) {
-    if (type === NetworkType.rpc) {
-      throw new Error(
-        "Cannot use setProviderType to switch to a custom network (network type 'rpc'). Use setActiveNetwork instead.",
-      );
-    }
     this.#setCurrentAsPreviousProvider();
     // If testnet the ticker symbol should use a testnet prefix
     const ticker =
