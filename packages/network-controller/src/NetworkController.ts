@@ -19,8 +19,12 @@ import {
 import { SafeEventEmitterProvider } from '@metamask/eth-json-rpc-provider';
 import { PollingBlockTracker } from 'eth-block-tracker';
 import { assertIsStrictHexString } from '@metamask/utils';
-import { createNetworkClient, InfuraNetworkType, NetworkClientType } from './create-network-client';
 import type { Hex } from '@metamask/utils/dist';
+import {
+  createNetworkClient,
+  InfuraNetworkType,
+  NetworkClientType,
+} from './create-network-client';
 
 /**
  * @type ProviderConfig
@@ -274,7 +278,9 @@ export class NetworkController extends BaseControllerV2<
         if (rpcTarget === undefined) {
           throw new Error('rpcTarget must be passed in for custom rpcs');
         }
-        const cid: Hex = chainId.startsWith('0x') ? chainId as Hex : `0x${parseInt(chainId, 10).toString(16)}`;
+        const cid: Hex = chainId.startsWith('0x')
+          ? (chainId as Hex)
+          : `0x${parseInt(chainId, 10).toString(16)}`;
         this.setupStandardProvider(rpcTarget, cid);
         break;
       default:
@@ -316,7 +322,7 @@ export class NetworkController extends BaseControllerV2<
     const { provider, blockTracker } = createNetworkClient({
       network: type,
       infuraProjectId: this.infuraProjectId || '',
-      type: NetworkClientType.Infura
+      type: NetworkClientType.Infura,
     });
     this.updateProvider(provider, blockTracker);
   }
@@ -334,7 +340,7 @@ export class NetworkController extends BaseControllerV2<
     const { provider, blockTracker } = createNetworkClient({
       rpcUrl: rpcTarget,
       chainId,
-      type: NetworkClientType.Custom
+      type: NetworkClientType.Custom,
     });
 
     this.updateProvider(provider, blockTracker);
