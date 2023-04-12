@@ -260,3 +260,10 @@ export function addUrlProtocolPrefix(urlString: string): string {
 export function ethersBigNumberToBN(bigNumber: BigNumber): BN {
   return new BN(stripHexPrefix(bigNumber.toHexString()), 'hex');
 }
+
+export enum SuggestedAssetStatus {
+  accepted = 'accepted',
+  failed = 'failed',
+  pending = 'pending',
+  rejected = 'rejected',
+}
