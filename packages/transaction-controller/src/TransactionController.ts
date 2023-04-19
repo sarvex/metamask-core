@@ -11,6 +11,7 @@ import {
   BaseController,
   BaseConfig,
   BaseState,
+  RestrictedControllerMessenger,
 } from '@metamask/base-controller';
 import type {
   NetworkState,
@@ -26,7 +27,14 @@ import {
   query,
   NetworkType,
   RPC,
+  ApprovalType,
+  ORIGIN_METAMASK,
 } from '@metamask/controller-utils';
+import {
+  AcceptRequest as AcceptApprovalRequest,
+  AddApprovalRequest,
+  RejectRequest as RejectApprovalRequest,
+} from '@metamask/approval-controller';
 import NonceTracker from 'nonce-tracker';
 import {
   getAndFormatTransactionsForNonceTracker,
@@ -265,6 +273,30 @@ export const CANCEL_RATE = 1.5;
 export const SPEED_UP_RATE = 1.1;
 
 /**
+ * The name of the {@link TransactionController}.
+ */
+const controllerName = 'TransactionController';
+
+/**
+ * The external actions available to the {@link TransactionController}.
+ */
+type AllowedActions =
+  | AddApprovalRequest
+  | AcceptApprovalRequest
+  | RejectApprovalRequest;
+
+/**
+ * The messenger of the {@link TransactionController}.
+ */
+export type TransactionControllerMessenger = RestrictedControllerMessenger<
+  typeof controllerName,
+  AllowedActions,
+  never,
+  AllowedActions['type'],
+  never
+>;
+
+/**
  * Controller responsible for submitting and managing transactions.
  */
 export class TransactionController extends BaseController<
@@ -284,6 +316,8 @@ export class TransactionController extends BaseController<
   private mutex = new Mutex();
 
   private getNetworkState: () => NetworkState;
+
+  private messagingSystem: TransactionControllerMessenger;
 
   private failTransaction(transactionMeta: TransactionMeta, error: Error) {
     const newTransactionMeta = {
@@ -422,6 +456,7 @@ export class TransactionController extends BaseController<
    * @param options.onNetworkStateChange - Allows subscribing to network controller state changes.
    * @param options.provider - The provider used to create the underlying EthQuery instance.
    * @param options.blockTracker - The block tracker used to poll for new blocks data.
+   * @param options.messenger - The controller messenger.
    * @param config - Initial options used to configure this controller.
    * @param state - Initial state to set on this controller.
    */
@@ -431,11 +466,13 @@ export class TransactionController extends BaseController<
       onNetworkStateChange,
       provider,
       blockTracker,
+      messenger,
     }: {
       getNetworkState: () => NetworkState;
       onNetworkStateChange: (listener: (state: NetworkState) => void) => void;
       provider: ProviderProxy;
       blockTracker: BlockTrackerProxy;
+      messenger: TransactionControllerMessenger;
     },
     config?: Partial<TransactionConfig>,
     state?: Partial<TransactionState>,
@@ -452,6 +489,7 @@ export class TransactionController extends BaseController<
     };
     this.initialize();
     this.provider = provider;
+    this.messagingSystem = messenger;
     this.getNetworkState = getNetworkState;
     this.ethQuery = new EthQuery(provider);
     this.registry = new MethodRegistry({ provider });
@@ -596,6 +634,7 @@ export class TransactionController extends BaseController<
     transactions.push(transactionMeta);
     this.update({ transactions: this.trimTransactionsForState(transactions) });
     this.hub.emit(`unapprovedTransaction`, transactionMeta);
+    this.requestApproval(transactionMeta);
     return { result, transactionMeta };
   }
 
@@ -665,10 +704,12 @@ export class TransactionController extends BaseController<
           transactionMeta,
           new Error('No sign method defined.'),
         );
+        this.rejectApproval(transactionMeta);
         return;
       } else if (!currentChainId) {
         releaseLock();
         this.failTransaction(transactionMeta, new Error('No chainId defined.'));
+        this.rejectApproval(transactionMeta);
         return;
       }
 
@@ -723,10 +764,12 @@ export class TransactionController extends BaseController<
       ]);
       transactionMeta.transactionHash = transactionHash;
       transactionMeta.status = TransactionStatus.submitted;
+      this.acceptApproval(transactionMeta);
       this.updateTransaction(transactionMeta);
       this.hub.emit(`${transactionMeta.id}:finished`, transactionMeta);
     } catch (error: any) {
       this.failTransaction(transactionMeta, error);
+      this.rejectApproval(transactionMeta);
     } finally {
       // must set transaction to submitted/failed before releasing lock
       if (nonceLock) {
@@ -755,6 +798,7 @@ export class TransactionController extends BaseController<
       ({ id }) => id !== transactionID,
     );
     this.update({ transactions: this.trimTransactionsForState(transactions) });
+    this.rejectApproval(transactionMeta);
   }
 
   /**
@@ -762,7 +806,7 @@ export class TransactionController extends BaseController<
    * and emitting a `<tx.id>:finished` hub event.
    *
    * @param transactionID - The ID of the transaction to cancel.
-   * @param gasValues - The gas values to use for the cancellation transation.
+   * @param gasValues - The gas values to use for the cancellation transaction.
    */
   async stopTransaction(
     transactionID: string,
@@ -856,6 +900,7 @@ export class TransactionController extends BaseController<
     await query(this.ethQuery, 'sendRawTransaction', [rawTransaction]);
     transactionMeta.status = TransactionStatus.cancelled;
     this.hub.emit(`${transactionMeta.id}:finished`, transactionMeta);
+    this.rejectApproval(transactionMeta);
   }
 
   /**
@@ -1520,6 +1565,56 @@ export class TransactionController extends BaseController<
     localGasUsed: string | undefined,
   ): boolean {
     return remoteGasUsed !== localGasUsed;
+  }
+
+  private requestApproval(txMeta: TransactionMeta) {
+    const id = this.getApprovalId(txMeta);
+    const { origin } = txMeta;
+    const type = ApprovalType.Transaction;
+    const requestData = { txId: txMeta.id };
+
+    this.messagingSystem
+      .call(
+        'ApprovalController:addRequest',
+        {
+          id,
+          origin: origin || ORIGIN_METAMASK,
+          type,
+          requestData,
+        },
+        true,
+      )
+      .catch(() => {
+        // Intentionally ignored as promise not currently used
+      });
+  }
+
+  private acceptApproval(txMeta: TransactionMeta) {
+    const id = this.getApprovalId(txMeta);
+
+    try {
+      this.messagingSystem.call('ApprovalController:acceptRequest', id);
+    } catch (error) {
+      console.error('Failed to accept transaction approval request', error);
+    }
+  }
+
+  private rejectApproval(txMeta: TransactionMeta) {
+    const id = this.getApprovalId(txMeta);
+
+    try {
+      this.messagingSystem.call(
+        'ApprovalController:rejectRequest',
+        id,
+        new Error('Rejected'),
+      );
+    } catch (error) {
+      console.error('Failed to reject transaction approval request', error);
+    }
+  }
+
+  private getApprovalId(txMeta: TransactionMeta) {
+    return String(txMeta.id);
   }
 }
 
