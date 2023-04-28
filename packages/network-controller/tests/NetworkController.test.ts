@@ -1,5 +1,6 @@
 import { inspect, isDeepStrictEqual, promisify } from 'util';
 import assert from 'assert';
+import { cloneDeep } from 'lodash';
 import { ControllerMessenger } from '@metamask/base-controller';
 import * as ethQueryModule from 'eth-query';
 import { Patch } from 'immer';
@@ -2335,6 +2336,98 @@ describe('NetworkController', () => {
   describe('rollbackToPreviousProvider', () => {
     for (const { networkType } of INFURA_NETWORKS) {
       describe(`if the previous provider configuration had a type of "${networkType}"`, () => {
+        it('emits networkWillChange', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: buildProviderConfig({
+                  type: networkType,
+                  ...BUILT_IN_NETWORKS[networkType],
+                }),
+                networkConfigurations: {
+                  testNetworkConfiguration: {
+                    id: 'testNetworkConfiguration',
+                    rpcUrl: 'https://mock-rpc-url',
+                    chainId: '0x1337',
+                    ticker: 'TEST',
+                    nickname: 'test network',
+                    rpcPrefs: {
+                      blockExplorerUrl: 'https://test-block-explorer.com',
+                    },
+                  },
+                },
+              },
+              infuraProjectId: 'some-infura-project-id',
+            },
+            async ({ controller, messenger }) => {
+              const fakeProvider = buildFakeProvider();
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+              await controller.setActiveNetwork('testNetworkConfiguration');
+
+              const networkWillChange = await waitForPublishedEvents(
+                messenger,
+                'NetworkController:networkWillChange',
+                {
+                  produceEvents: () => {
+                    // Intentionally not awaited because we're capturing an event
+                    // emitted partway through the operation
+                    controller.rollbackToPreviousProvider();
+                  },
+                },
+              );
+
+              expect(networkWillChange).toStrictEqual([[]]);
+            },
+          );
+        });
+
+        it('emits networkDidChange', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: buildProviderConfig({
+                  type: networkType,
+                  ...BUILT_IN_NETWORKS[networkType],
+                }),
+                networkConfigurations: {
+                  testNetworkConfiguration: {
+                    id: 'testNetworkConfiguration',
+                    rpcUrl: 'https://mock-rpc-url',
+                    chainId: '0x1337',
+                    ticker: 'TEST',
+                    nickname: 'test network',
+                    rpcPrefs: {
+                      blockExplorerUrl: 'https://test-block-explorer.com',
+                    },
+                  },
+                },
+              },
+              infuraProjectId: 'some-infura-project-id',
+            },
+            async ({ controller, messenger }) => {
+              const fakeProvider = buildFakeProvider();
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+              await controller.setActiveNetwork('testNetworkConfiguration');
+
+              const networkDidChange = await waitForPublishedEvents(
+                messenger,
+                'NetworkController:networkDidChange',
+                {
+                  produceEvents: () => {
+                    // Intentionally not awaited because we're capturing an event
+                    // emitted partway through the operation
+                    controller.rollbackToPreviousProvider();
+                  },
+                },
+              );
+
+              expect(networkDidChange).toStrictEqual([[]]);
+            },
+          );
+        });
+
         it('overwrites the the current provider configuration with the previous provider configuration', async () => {
           await withController(
             {
@@ -2895,6 +2988,76 @@ describe('NetworkController', () => {
     }
 
     describe(`if the previous provider configuration had a type of "rpc"`, () => {
+      it('emits networkWillChange', async () => {
+        await withController(
+          {
+            state: {
+              providerConfig: buildProviderConfig({
+                type: NetworkType.rpc,
+                rpcUrl: 'https://mock-rpc-url',
+                chainId: '1337',
+              }),
+            },
+            infuraProjectId: 'some-infura-project-id',
+          },
+          async ({ controller, messenger }) => {
+            const fakeProvider = buildFakeProvider();
+            const fakeNetworkClient = buildFakeClient(fakeProvider);
+            mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+            await controller.setProviderType(InfuraNetworkType.goerli);
+
+            const networkWillChange = await waitForPublishedEvents(
+              messenger,
+              'NetworkController:networkWillChange',
+              {
+                produceEvents: () => {
+                  // Intentionally not awaited because we're capturing an event
+                  // emitted partway through the operation
+                  controller.rollbackToPreviousProvider();
+                },
+              },
+            );
+
+            expect(networkWillChange).toStrictEqual([[]]);
+          },
+        );
+      });
+
+      it('emits networkDidChange', async () => {
+        await withController(
+          {
+            state: {
+              providerConfig: buildProviderConfig({
+                type: NetworkType.rpc,
+                rpcUrl: 'https://mock-rpc-url',
+                chainId: '1337',
+              }),
+            },
+            infuraProjectId: 'some-infura-project-id',
+          },
+          async ({ controller, messenger }) => {
+            const fakeProvider = buildFakeProvider();
+            const fakeNetworkClient = buildFakeClient(fakeProvider);
+            mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+            await controller.setProviderType(InfuraNetworkType.goerli);
+
+            const networkDidChange = await waitForPublishedEvents(
+              messenger,
+              'NetworkController:networkDidChange',
+              {
+                produceEvents: () => {
+                  // Intentionally not awaited because we're capturing an event
+                  // emitted partway through the operation
+                  controller.rollbackToPreviousProvider();
+                },
+              },
+            );
+
+            expect(networkDidChange).toStrictEqual([[]]);
+          },
+        );
+      });
+
       it('overwrites the the current provider configuration with the previous provider configuration', async () => {
         await withController(
           {
@@ -3465,6 +3628,62 @@ function refreshNetworkTests({
   initialState?: Partial<NetworkState>;
   operation: (controller: NetworkController) => Promise<void>;
 }) {
+  it('emits networkWillChange', async () => {
+    await withController(
+      {
+        infuraProjectId: 'infura-project-id',
+        state: initialState,
+      },
+      async ({ controller, messenger }) => {
+        const fakeProvider = buildFakeProvider();
+        const fakeNetworkClient = buildFakeClient(fakeProvider);
+        mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+
+        const networkWillChange = await waitForPublishedEvents(
+          messenger,
+          'NetworkController:networkWillChange',
+          {
+            produceEvents: () => {
+              // Intentionally not awaited because we're capturing an event
+              // emitted partway through the operation
+              operation(controller);
+            },
+          },
+        );
+
+        expect(networkWillChange).toStrictEqual([[]]);
+      },
+    );
+  });
+
+  it('emits networkDidChange', async () => {
+    await withController(
+      {
+        infuraProjectId: 'infura-project-id',
+        state: initialState,
+      },
+      async ({ controller, messenger }) => {
+        const fakeProvider = buildFakeProvider();
+        const fakeNetworkClient = buildFakeClient(fakeProvider);
+        mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+
+        const networkDidChange = await waitForPublishedEvents(
+          messenger,
+          'NetworkController:networkDidChange',
+          {
+            produceEvents: () => {
+              // Intentionally not awaited because we're capturing an event
+              // emitted partway through the operation
+              operation(controller);
+            },
+          },
+        );
+
+        expect(networkDidChange).toStrictEqual([[]]);
+      },
+    );
+  });
+
   it('clears network id from state', async () => {
     await withController(
       {
@@ -5014,6 +5233,8 @@ function buildNetworkControllerMessenger(messenger = buildMessenger()) {
       'NetworkController:stateChange',
       'NetworkController:infuraIsBlocked',
       'NetworkController:infuraIsUnblocked',
+      'NetworkController:networkDidChange',
+      'NetworkController:networkWillChange',
     ],
   });
 }
