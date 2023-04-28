@@ -1571,7 +1571,6 @@ export class TransactionController extends BaseController<
     const id = this.getApprovalId(txMeta);
     const { origin } = txMeta;
     const type = ApprovalType.Transaction;
-    const requestData = { txId: txMeta.id };
 
     this.messagingSystem
       .call(
@@ -1580,7 +1579,13 @@ export class TransactionController extends BaseController<
           id,
           origin: origin || ORIGIN_METAMASK,
           type,
-          requestData,
+          requestData: {
+            id: txMeta.id,
+            origin: origin || ORIGIN_METAMASK,
+            transaction: {
+              ...txMeta.transaction,
+            },
+          },
         },
         true,
       )

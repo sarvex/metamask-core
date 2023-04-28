@@ -651,7 +651,11 @@ describe('TransactionController', () => {
         {
           id: expect.any(String),
           origin: ORIGIN_METAMASK,
-          requestData: { txId: expect.any(String) },
+          requestData: {
+            id: expect.any(String),
+            origin: ORIGIN_METAMASK,
+            transaction: expect.any(Object),
+          },
           type: ApprovalType.Transaction,
         },
         true,
@@ -776,7 +780,11 @@ describe('TransactionController', () => {
       {
         id: expect.any(String),
         origin: ORIGIN_METAMASK,
-        requestData: { txId: expect.any(String) },
+        requestData: {
+          id: expect.any(String),
+          origin: ORIGIN_METAMASK,
+          transaction: expect.any(Object),
+        },
         type: ApprovalType.Transaction,
       },
       true,
@@ -858,7 +866,11 @@ describe('TransactionController', () => {
       {
         id: expect.any(String),
         origin: ORIGIN_METAMASK,
-        requestData: { txId: expect.any(String) },
+        requestData: {
+          id: expect.any(String),
+          origin: ORIGIN_METAMASK,
+          transaction: expect.any(Object),
+        },
         type: ApprovalType.Transaction,
       },
       true,
@@ -946,7 +958,11 @@ describe('TransactionController', () => {
       {
         id: expect.any(String),
         origin: ORIGIN_METAMASK,
-        requestData: { txId: expect.any(String) },
+        requestData: {
+          id: expect.any(String),
+          origin: ORIGIN_METAMASK,
+          transaction: expect.any(Object),
+        },
         type: ApprovalType.Transaction,
       },
       true,
@@ -987,7 +1003,11 @@ describe('TransactionController', () => {
       {
         id: expect.any(String),
         origin: ORIGIN_METAMASK,
-        requestData: { txId: expect.any(String) },
+        requestData: {
+          id: expect.any(String),
+          origin: ORIGIN_METAMASK,
+          transaction: expect.any(Object),
+        },
         type: ApprovalType.Transaction,
       },
       true,
@@ -1050,7 +1070,11 @@ describe('TransactionController', () => {
           {
             id: expect.any(String),
             origin: ORIGIN_METAMASK,
-            requestData: { txId: expect.any(String) },
+            requestData: {
+              id: expect.any(String),
+              origin: ORIGIN_METAMASK,
+              transaction: expect.any(Object),
+            },
             type: ApprovalType.Transaction,
           },
           true,
@@ -1426,7 +1450,7 @@ describe('TransactionController', () => {
     ['resolves', true],
     ['rejects', false],
   ])(
-    'should stop a transaction if user rejects and message to ApprovalController %s',
+    'stops a transaction if user rejects and message to ApprovalController %s',
     async (_, approvalControllerCallResolves: boolean) => {
       const calledOnce = false;
       callActionSpy = setupMessengerCallSpy(
@@ -1461,7 +1485,11 @@ describe('TransactionController', () => {
         {
           id: expect.any(String),
           origin: ORIGIN_METAMASK,
-          requestData: { txId: expect.any(String) },
+          requestData: {
+            id: expect.any(String),
+            origin: ORIGIN_METAMASK,
+            transaction: expect.any(Object),
+          },
           type: ApprovalType.Transaction,
         },
         true,
@@ -1504,7 +1532,11 @@ describe('TransactionController', () => {
       {
         id: expect.any(String),
         origin: ORIGIN_METAMASK,
-        requestData: { txId: expect.any(String) },
+        requestData: {
+          id: expect.any(String),
+          origin: ORIGIN_METAMASK,
+          transaction: expect.any(Object),
+        },
         type: ApprovalType.Transaction,
       },
       true,
